@@ -79,25 +79,14 @@
       data.forEach(row => {
         const tr = document.createElement("tr");
 
-        // Corrected column indexes
-        const name = row[1];
-        const url = row[3];
-        const nextStep = row[2];
+        // Columns B and C assumed at index 0 and 1 here:
+        const name = row[0];
+        const nextStep = row[1];
 
-        // Create linked name cell
         const tdName = document.createElement("td");
-        if (url) {
-          const a = document.createElement("a");
-          a.href = url;
-          a.textContent = name;
-          a.target = "_blank";
-          tdName.appendChild(a);
-        } else {
-          tdName.textContent = name;
-        }
+        tdName.textContent = name;
         tr.appendChild(tdName);
 
-        // Next step cell
         const tdNext = document.createElement("td");
         tdNext.textContent = nextStep;
         tr.appendChild(tdNext);
@@ -137,8 +126,8 @@
       const filterValue = document.getElementById("filterSelect").value;
 
       let filtered = fullData.filter(row => {
-        const name = row[1] || "";
-        const nextStep = row[2] || "";
+        const name = row[0] || "";
+        const nextStep = row[1] || "";
         const nameMatch = name.toLowerCase().includes(searchValue);
         const stepMatch = !filterValue || nextStep === filterValue;
         return nameMatch && stepMatch;
@@ -154,16 +143,12 @@
     fetch(csvUrl)
       .then(res => res.text())
       .then(csv => {
-        // CSV parsing with basic quoted comma handling
-        const rows = csv.split("\n").slice(1).map(line => {
-          const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
-          return line.split(regex).map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
-        });
-        // Ensure rows have at least 4 columns (A-D)
-        fullData = rows.filter(row => row.length >= 4);
+        // parse CSV rows
+        const rows = csv.trim().split("\n").slice(1).map(row => row.split(",").map(cell => cell.replace(/^"(.*)"$/, '$1')));
+        fullData = rows.filter(row => row.length >= 2);
 
-        // Populate filter dropdown with unique "Next step" values
-        const uniqueSteps = [...new Set(fullData.map(row => row[2]))];
+        // populate filter dropdown
+        const uniqueSteps = [...new Set(fullData.map(row => row[1]))];
         const filterSelect = document.getElementById("filterSelect");
         uniqueSteps.forEach(step => {
           const opt = document.createElement("option");
@@ -186,5 +171,6 @@
   </script>
 </body>
 </html>
+
 
 
