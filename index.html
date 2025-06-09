@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Let's get to work!</title>
   <style>
     body {
@@ -55,115 +55,5 @@
   <div class="pagination" id="pagination"></div>
 
   <script>
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=384521337&single=true&output=csv';
+    const csvUrl = 'http
 
-    let fullData = [];
-    let currentPage = 1;
-    const rowsPerPage = 50;
-
-    function createTable(data) {
-      const table = document.createElement("table");
-      const thead = document.createElement("thead");
-      const tbody = document.createElement("tbody");
-
-      const headers = ["Click to edit", "Next step"];
-      const trHead = document.createElement("tr");
-      headers.forEach(header => {
-        const th = document.createElement("th");
-        th.textContent = header;
-        trHead.appendChild(th);
-      });
-      thead.appendChild(trHead);
-
-      data.forEach(row => {
-        const tr = document.createElement("tr");
-
-        // Column B (name)
-        const name = row[0];
-        const url = row[2];
-        const tdName = document.createElement("td");
-        tdName.innerHTML = url ? `<a href="${url}" target="_blank">${name}</a>` : name;
-        tr.appendChild(tdName);
-
-        // Column C (next step)
-        const tdNext = document.createElement("td");
-        tdNext.textContent = row[1];
-        tr.appendChild(tdNext);
-
-        tbody.appendChild(tr);
-      });
-
-      table.appendChild(thead);
-      table.appendChild(tbody);
-      return table;
-    }
-
-    function paginate(data) {
-      const start = (currentPage - 1) * rowsPerPage;
-      return data.slice(start, start + rowsPerPage);
-    }
-
-    function renderPagination(totalRows) {
-      const pageCount = Math.ceil(totalRows / rowsPerPage);
-      const container = document.getElementById("pagination");
-      container.innerHTML = '';
-
-      for (let i = 1; i <= pageCount; i++) {
-        const btn = document.createElement("button");
-        btn.textContent = i;
-        if (i === currentPage) btn.disabled = true;
-        btn.onclick = () => {
-          currentPage = i;
-          render();
-        };
-        container.appendChild(btn);
-      }
-    }
-
-    function render() {
-      const searchValue = document.getElementById("searchInput").value.toLowerCase();
-      const filterValue = document.getElementById("filterSelect").value;
-
-      let filtered = fullData.filter(row => {
-        const nameMatch = row[0].toLowerCase().includes(searchValue);
-        const stepMatch = !filterValue || row[1] === filterValue;
-        return nameMatch && stepMatch;
-      });
-
-      const paged = paginate(filtered);
-      const table = createTable(paged);
-      document.getElementById("tableContainer").innerHTML = "";
-      document.getElementById("tableContainer").appendChild(table);
-      renderPagination(filtered.length);
-    }
-
-    fetch(csvUrl)
-      .then(res => res.text())
-      .then(csv => {
-        const rows = csv.split("\n").slice(1).map(line => line.split(","));
-        fullData = rows.filter(row => row.length >= 3);
-
-        // Populate filter options
-        const uniqueSteps = [...new Set(fullData.map(row => row[1]))];
-        const filterSelect = document.getElementById("filterSelect");
-        uniqueSteps.forEach(step => {
-          const opt = document.createElement("option");
-          opt.value = step;
-          opt.textContent = step;
-          filterSelect.appendChild(opt);
-        });
-
-        document.getElementById("searchInput").addEventListener("input", () => {
-          currentPage = 1;
-          render();
-        });
-        document.getElementById("filterSelect").addEventListener("change", () => {
-          currentPage = 1;
-          render();
-        });
-
-        render();
-      });
-  </script>
-</body>
-</html>
