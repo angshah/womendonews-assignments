@@ -1,165 +1,169 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Let's get to work!</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 1em; }
-    input, select { margin-bottom: 1em; padding: 0.5em; width: 300px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
-    thead tr {
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      color: #305063;
+      margin-bottom: 20px;
+    }
+    input, select {
+      padding: 10px;
+      margin: 10px 10px 20px 0;
+      font-size: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
       background-color: #305063;
       color: white;
+      padding: 12px;
     }
-    th, td { padding: 0.5em; border: 1px solid #ccc; text-align: left; }
-    a { color: #1a73e8; text-decoration: underline; }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #ccc;
+    }
+    a {
+      color: #305063;
+      text-decoration: underline;
+    }
     .pagination {
-      margin-top: 1em;
+      margin-top: 20px;
     }
     .pagination button {
-      padding: 0.5em 1em;
-      margin-right: 0.5em;
-      font-size: 1em;
-      cursor: pointer;
-    }
-    .pagination button:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-    .pagination span {
-      font-size: 1em;
-      vertical-align: middle;
+      padding: 8px 12px;
+      margin: 0 4px;
     }
   </style>
 </head>
 <body>
-
-  <h2>Let's get to work!</h2>
-  
-  <input type="text" id="search-input" placeholder="Search by name" />
-  
-  <select id="filter-select">
-    <option value="">All Next steps</option>
+  <h1>Let's get to work!</h1>
+  <input type="text" id="searchInput" placeholder="Search by name" />
+  <select id="filterSelect">
+    <option value="">All Steps</option>
   </select>
-  
-  <table id="data-table" aria-describedby="page-info" role="table">
-    <thead>
-      <tr><th scope="col">Click to edit</th><th scope="col">Next step</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <div id="tableContainer"></div>
+  <div class="pagination" id="pagination"></div>
 
-  <div class="pagination" role="region" aria-label="Pagination controls">
-    <button id="prev-btn" disabled aria-disabled="true">Previous</button>
-    <button id="next-btn" disabled aria-disabled="true">Next</button>
-    <span id="page-info" aria-live="polite" style="margin-left: 1em;"></span>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.1/papaparse.min.js"></script>
   <script>
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=384521337&single=true&output=csv';
-    let data = [];
-    let filteredData = [];
-    const rowsPerPage = 50;
+
+    let fullData = [];
     let currentPage = 1;
+    const rowsPerPage = 50;
 
-    // Create hyperlink if text is a valid URL
-    function makeLink(text) {
-      try {
-        let url = new URL(text);
-        return `<a href="${url.href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
-      } catch {
-        return text;
-      }
-    }
+    function createTable(data) {
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const tbody = document.createElement("tbody");
 
-    function renderTablePage(page) {
-      const tbody = document.querySelector('#data-table tbody');
-      tbody.innerHTML = '';
+      const headers = ["Click to edit", "Next step"];
+      const trHead = document.createElement("tr");
+      headers.forEach(header => {
+        const th = document.createElement("th");
+        th.textContent = header;
+        trHead.appendChild(th);
+      });
+      thead.appendChild(trHead);
 
-      const start = (page - 1) * rowsPerPage;
-      const end = start + rowsPerPage;
-      const pageData = filteredData.slice(start, end);
+      data.forEach(row => {
+        const tr = document.createElement("tr");
 
-      if (pageData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="2">No matching results</td></tr>';
-        document.getElementById('page-info').textContent = 'No results found.';
-        document.getElementById('prev-btn').disabled = true;
-        document.getElementById('next-btn').disabled = true;
-        return;
-      }
+        // Column B (name)
+        const name = row[0];
+        const url = row[2];
+        const tdName = document.createElement("td");
+        tdName.innerHTML = url ? `<a href="${url}" target="_blank">${name}</a>` : name;
+        tr.appendChild(tdName);
 
-      pageData.forEach(row => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${makeLink(row['Click to edit'])}</td><td>${row['Next step']}</td>`;
+        // Column C (next step)
+        const tdNext = document.createElement("td");
+        tdNext.textContent = row[1];
+        tr.appendChild(tdNext);
+
         tbody.appendChild(tr);
       });
 
-      const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-      document.getElementById('page-info').textContent =
-        `Page ${currentPage} of ${totalPages} (${filteredData.length} results)`;
-      
-      document.getElementById('prev-btn').disabled = currentPage === 1;
-      document.getElementById('next-btn').disabled = currentPage === totalPages;
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      return table;
     }
 
-    function populateFilterOptions() {
-      const select = document.getElementById('filter-select');
-      const steps = [...new Set(data.map(d => d['Next step']).filter(Boolean))];
-      steps.sort();
-      steps.forEach(step => {
-        const option = document.createElement('option');
-        option.value = step;
-        option.textContent = step;
-        select.appendChild(option);
+    function paginate(data) {
+      const start = (currentPage - 1) * rowsPerPage;
+      return data.slice(start, start + rowsPerPage);
+    }
+
+    function renderPagination(totalRows) {
+      const pageCount = Math.ceil(totalRows / rowsPerPage);
+      const container = document.getElementById("pagination");
+      container.innerHTML = '';
+
+      for (let i = 1; i <= pageCount; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        if (i === currentPage) btn.disabled = true;
+        btn.onclick = () => {
+          currentPage = i;
+          render();
+        };
+        container.appendChild(btn);
+      }
+    }
+
+    function render() {
+      const searchValue = document.getElementById("searchInput").value.toLowerCase();
+      const filterValue = document.getElementById("filterSelect").value;
+
+      let filtered = fullData.filter(row => {
+        const nameMatch = row[0].toLowerCase().includes(searchValue);
+        const stepMatch = !filterValue || row[1] === filterValue;
+        return nameMatch && stepMatch;
       });
+
+      const paged = paginate(filtered);
+      const table = createTable(paged);
+      document.getElementById("tableContainer").innerHTML = "";
+      document.getElementById("tableContainer").appendChild(table);
+      renderPagination(filtered.length);
     }
 
-    function filterData() {
-      const searchTerm = document.getElementById('search-input').value.toLowerCase();
-      const selectedStep = document.getElementById('filter-select').value;
+    fetch(csvUrl)
+      .then(res => res.text())
+      .then(csv => {
+        const rows = csv.split("\n").slice(1).map(line => line.split(","));
+        fullData = rows.filter(row => row.length >= 3);
 
-      filteredData = data.filter(row => {
-        const clickToEdit = (row['Click to edit'] || '').toLowerCase();
-        const nextStep = row['Next step'] || '';
-        const matchesSearch = clickToEdit.includes(searchTerm);
-        const matchesStep = selectedStep === '' || nextStep === selectedStep;
-        return matchesSearch && matchesStep;
+        // Populate filter options
+        const uniqueSteps = [...new Set(fullData.map(row => row[1]))];
+        const filterSelect = document.getElementById("filterSelect");
+        uniqueSteps.forEach(step => {
+          const opt = document.createElement("option");
+          opt.value = step;
+          opt.textContent = step;
+          filterSelect.appendChild(opt);
+        });
+
+        document.getElementById("searchInput").addEventListener("input", () => {
+          currentPage = 1;
+          render();
+        });
+        document.getElementById("filterSelect").addEventListener("change", () => {
+          currentPage = 1;
+          render();
+        });
+
+        render();
       });
-
-      currentPage = 1; // Reset to first page on filter/search change
-      renderTablePage(currentPage);
-    }
-
-    document.getElementById('search-input').addEventListener('input', filterData);
-    document.getElementById('filter-select').addEventListener('change', filterData);
-
-    document.getElementById('prev-btn').addEventListener('click', () => {
-      if (currentPage > 1) {
-        currentPage--;
-        renderTablePage(currentPage);
-      }
-    });
-
-    document.getElementById('next-btn').addEventListener('click', () => {
-      if (currentPage < Math.ceil(filteredData.length / rowsPerPage)) {
-        currentPage++;
-        renderTablePage(currentPage);
-      }
-    });
-
-    Papa.parse(csvUrl, {
-      download: true,
-      header: true,
-      complete: (results) => {
-        data = results.data.filter(row => row['Click to edit']); // Remove empty rows
-        populateFilterOptions();
-        filterData();
-      },
-      error: (err) => {
-        console.error('Error loading CSV:', err);
-      }
-    });
   </script>
-
 </body>
 </html>
