@@ -31,6 +31,7 @@
     td {
       padding: 12px;
       border-bottom: 1px solid #ccc;
+      text-align: left;
     }
     a {
       color: #305063;
@@ -55,5 +56,135 @@
   <div class="pagination" id="pagination"></div>
 
   <script>
-    const csvUrl = 'http
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=384521337&single=true&output=csv';
+
+    let fullData = [];
+    let currentPage = 1;
+    const rowsPerPage = 50;
+
+    function createTable(data) {
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const tbody = document.createElement("tbody");
+
+      const headers = ["Click to edit", "Next step"];
+      const trHead = document.createElement("tr");
+      headers.forEach(header => {
+        const th = document.createElement("th");
+        th.textContent = header;
+        trHead.appendChild(th);
+      });
+      thead.appendChild(trHead);
+
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+
+        // Corrected column indexes
+        const name = row[1];
+        const url = row[3];
+        const nextStep = row[2];
+
+        // Create linked name cell
+        const tdName = document.createElement("td");
+        if (url) {
+          const a = document.createElement("a");
+          a.href = url;
+          a.textContent = name;
+          a.target = "_blank";
+          tdName.appendChild(a);
+        } else {
+          tdName.textContent = name;
+        }
+        tr.appendChild(tdName);
+
+        // Next step cell
+        const tdNext = document.createElement("td");
+        tdNext.textContent = nextStep;
+        tr.appendChild(tdNext);
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      return table;
+    }
+
+    function paginate(data) {
+      const start = (currentPage - 1) * rowsPerPage;
+      return data.slice(start, start + rowsPerPage);
+    }
+
+    function renderPagination(totalRows) {
+      const pageCount = Math.ceil(totalRows / rowsPerPage);
+      const container = document.getElementById("pagination");
+      container.innerHTML = '';
+
+      for (let i = 1; i <= pageCount; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        if (i === currentPage) btn.disabled = true;
+        btn.onclick = () => {
+          currentPage = i;
+          render();
+        };
+        container.appendChild(btn);
+      }
+    }
+
+    function render() {
+      const searchValue = document.getElementById("searchInput").value.toLowerCase();
+      const filterValue = document.getElementById("filterSelect").value;
+
+      let filtered = fullData.filter(row => {
+        const name = row[1] || "";
+        const nextStep = row[2] || "";
+        const nameMatch = name.toLowerCase().includes(searchValue);
+        const stepMatch = !filterValue || nextStep === filterValue;
+        return nameMatch && stepMatch;
+      });
+
+      const paged = paginate(filtered);
+      const table = createTable(paged);
+      document.getElementById("tableContainer").innerHTML = "";
+      document.getElementById("tableContainer").appendChild(table);
+      renderPagination(filtered.length);
+    }
+
+    fetch(csvUrl)
+      .then(res => res.text())
+      .then(csv => {
+        // CSV parsing with basic quoted comma handling
+        const rows = csv.split("\n").slice(1).map(line => {
+          const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+          return line.split(regex).map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
+        });
+        // Ensure rows have at least 4 columns (A-D)
+        fullData = rows.filter(row => row.length >= 4);
+
+        // Populate filter dropdown with unique "Next step" values
+        const uniqueSteps = [...new Set(fullData.map(row => row[2]))];
+        const filterSelect = document.getElementById("filterSelect");
+        uniqueSteps.forEach(step => {
+          const opt = document.createElement("option");
+          opt.value = step;
+          opt.textContent = step;
+          filterSelect.appendChild(opt);
+        });
+
+        document.getElementById("searchInput").addEventListener("input", () => {
+          currentPage = 1;
+          render();
+        });
+        document.getElementById("filterSelect").addEventListener("change", () => {
+          currentPage = 1;
+          render();
+        });
+
+        render();
+      });
+  </script>
+</body>
+</html>
+
 
