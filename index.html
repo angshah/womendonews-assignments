@@ -19,9 +19,9 @@
     margin: 10px 10px 20px 0;
     font-size: 16px;
   }
-  button#suggestBtn {
+  button#suggestBtn, button#editBtn {
     padding: 10px 16px;
-    margin: 10px 0 20px 0;
+    margin: 10px 10px 20px 0;
     font-size: 16px;
     background-color: #305063;
     color: white;
@@ -76,6 +76,7 @@
 </select>
 
 <button id="suggestBtn" type="button">Suggest a biography to write</button>
+<button id="editBtn" type="button">Suggest a biography to edit</button>
 <div id="suggestions" aria-live="polite"></div>
 
 <div id="tableContainer"></div>
@@ -198,6 +199,39 @@
     renderPagination(filtered.length);
   }
 
+  // Returns n random items from an array
+  function pickRandom(items, n) {
+    const copy = items.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, n);
+  }
+
+  // Shows a heading and a numbered list of linked names in the results area
+  function renderSuggestions(headingText, picks) {
+    const container = document.getElementById("suggestions");
+    container.innerHTML = "";
+
+    const heading = document.createElement("strong");
+    heading.textContent = headingText;
+    container.appendChild(heading);
+
+    const ol = document.createElement("ol");
+    picks.forEach(item => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.textContent = item.name;
+      a.href = item.link;
+      a.target = "_blank";
+      li.appendChild(a);
+      li.appendChild(document.createTextNode(` (${item.citations} citations)`));
+      ol.appendChild(li);
+    });
+    container.appendChild(ol);
+  }
+
   // Suggest three random nominations from those with the highest number of
   // citations where column H ("enough citations for a new article?") is TRUE
   function suggestBiographies() {
@@ -241,29 +275,59 @@
       if (pool.length >= 3) break;
     }
 
-    // Shuffle the pool and take three
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
+    renderSuggestions("Try writing one of these:", pickRandom(pool, 3));
+  }
+
+  // The edit suggestions are chosen from at least this many of the articles with
+  // the fewest citations. Raise it (for example to 10) for more variety.
+  const EDIT_POOL_MIN = 3;
+
+  // Suggest three random articles that need edits (column F is TRUE),
+  // chosen from those with the lowest number of citations (column P)
+  function suggestEdits() {
+    const container = document.getElementById("suggestions");
+    container.innerHTML = "";
+
+    if (articlesData.length === 0) {
+      container.textContent = "Couldn't load suggestions right now. Please try again later.";
+      return;
     }
-    const picks = pool.slice(0, 3);
 
-    const heading = document.createElement("strong");
-    heading.textContent = "Try one of these:";
-    container.appendChild(heading);
+    // Column F (index 5) = article needs edits
+    // Column P (index 15) = number of citations in the article
+    // Column M (index 12) = Wikidata Q-ID, used to skip duplicate rows for the same person
+    const seen = new Set();
+    const candidates = articlesData
+      .filter(row => (row[5] || "").trim().toUpperCase() === "TRUE")
+      .filter(row => nameKey(row[1]))
+      .filter(row => /^\d+$/.test((row[15] || "").trim()))
+      .filter(row => {
+        const key = (row[12] || "").trim() || nameKey(row[1]);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map(row => ({
+        name: row[1].trim(),
+        link: row[4] || "#",                       // "Link to edit"
+        citations: parseInt(row[15], 10)           // column P
+      }));
 
-    const ol = document.createElement("ol");
-    picks.forEach(item => {
-      const li = document.createElement("li");
-      const a = document.createElement("a");
-      a.textContent = item.name;
-      a.href = item.link;
-      a.target = "_blank";
-      li.appendChild(a);
-      li.appendChild(document.createTextNode(` (${item.citations} citations)`));
-      ol.appendChild(li);
-    });
-    container.appendChild(ol);
+    if (candidates.length === 0) {
+      container.textContent = "No articles currently need edits.";
+      return;
+    }
+
+    // Pool = people with the lowest citation count, widened to the next-lowest
+    // counts until it has at least EDIT_POOL_MIN people
+    const counts = [...new Set(candidates.map(c => c.citations))].sort((a, b) => a - b);
+    let pool = [];
+    for (const count of counts) {
+      pool = pool.concat(candidates.filter(c => c.citations === count));
+      if (pool.length >= Math.max(EDIT_POOL_MIN, 3)) break;
+    }
+
+    renderSuggestions("Try editing one of these:", pickRandom(pool, 3));
   }
 
   Promise.all([
@@ -295,6 +359,7 @@
     });
 
     document.getElementById("suggestBtn").addEventListener("click", suggestBiographies);
+    document.getElementById("editBtn").addEventListener("click", suggestEdits);
 
     render();
   });
