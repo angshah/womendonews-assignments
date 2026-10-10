@@ -50,7 +50,7 @@
   <h1>Let's get to work!</h1>
   <input type="text" id="searchInput" placeholder="Search by name" />
   <select id="filterSelect">
-    <option value="">All Steps</option>
+    <option value="">Filter by status</option>
   </select>
   <div id="tableContainer"></div>
   <div class="pagination" id="pagination"></div>
@@ -67,7 +67,7 @@
       const thead = document.createElement("thead");
       const tbody = document.createElement("tbody");
 
-      const headers = ["Click to edit", "Next step"];
+      const headers = ["Click name to edit", "Status"];
       const trHead = document.createElement("tr");
       headers.forEach(header => {
         const th = document.createElement("th");
