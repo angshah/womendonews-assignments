@@ -1,179 +1,304 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Let's get to work!</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background-color: #f9f9f9;
-    }
-    h1 {
-      color: #305063;
-      margin-bottom: 20px;
-    }
-    input, select {
-      padding: 10px;
-      margin: 10px 10px 20px 0;
-      font-size: 16px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th {
-      background-color: #305063;
-      color: white;
-      padding: 12px;
-    }
-    td {
-      padding: 12px;
-      border-bottom: 1px solid #ccc;
-      text-align: left;
-    }
-    a {
-      color: #305063;
-      text-decoration: underline;
-    }
-    .pagination {
-      margin-top: 20px;
-    }
-    .pagination button {
-      padding: 8px 12px;
-      margin: 0 4px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Let's get to work!</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background-color: #f9f9f9;
+  }
+  h1 {
+    color: #305063;
+    margin-bottom: 20px;
+  }
+  input, select {
+    padding: 10px;
+    margin: 10px 10px 20px 0;
+    font-size: 16px;
+  }
+  button#suggestBtn {
+    padding: 10px 16px;
+    margin: 10px 0 20px 0;
+    font-size: 16px;
+    background-color: #305063;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  #suggestions {
+    margin-bottom: 20px;
+  }
+  #suggestions ol {
+    margin: 0;
+    padding-left: 20px;
+  }
+  #suggestions li {
+    margin: 6px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th {
+    background-color: #305063;
+    color: white;
+    padding: 12px;
+  }
+  td {
+    padding: 12px;
+    border-bottom: 1px solid #ccc;
+    text-align: left;
+  }
+  a {
+    color: #305063;
+    text-decoration: underline;
+  }
+  .pagination {
+    margin-top: 20px;
+  }
+  .pagination button {
+    padding: 8px 12px;
+    margin: 0 4px;
+  }
+</style>
 </head>
 <body>
-  <h1>Let's get to work!</h1>
-  <input type="text" id="searchInput" placeholder="Search by name" />
-  <select id="filterSelect">
-    <option value="">Filter by status</option>
-  </select>
-  <div id="tableContainer"></div>
-  <div class="pagination" id="pagination"></div>
 
-  <script>
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=384521337&single=true&output=csv';
+<h1>Let's get to work!</h1>
 
-    let fullData = [];
-    let currentPage = 1;
-    const rowsPerPage = 50;
+<input type="text" id="searchInput" placeholder="Search by name" />
 
-    function createTable(data) {
-      const table = document.createElement("table");
-      const thead = document.createElement("thead");
-      const tbody = document.createElement("tbody");
+<select id="filterSelect">
+  <option value="">Filter by status</option>
+</select>
 
-      const headers = ["Click name to edit", "Status"];
-      const trHead = document.createElement("tr");
-      headers.forEach(header => {
-        const th = document.createElement("th");
-        th.textContent = header;
-        trHead.appendChild(th);
-      });
-      thead.appendChild(trHead);
+<button id="suggestBtn" type="button">Suggest a biography to write</button>
+<div id="suggestions" aria-live="polite"></div>
 
-      data.forEach(row => {
-        const tr = document.createElement("tr");
+<div id="tableContainer"></div>
+<div class="pagination" id="pagination"></div>
 
-        // Columns B = row[1], C = row[2], D = row[3]
-        const name = row[1] || "";
-        const nextStep = row[2] || "";
-        const link = row[3] || "";
+<script>
+  // Tab that feeds the table: name, next step, link
+  const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=384521337&single=true&output=csv';
 
-        const tdName = document.createElement("td");
-        const a = document.createElement("a");
-        a.textContent = name;
-        a.href = link || "#";
-        a.target = "_blank";
-        tdName.appendChild(a);
-        tr.appendChild(tdName);
+  // "Articles data" tab: used for the "Suggest a biography" button
+  const articlesCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=1205421429&single=true&output=csv';
 
-        const tdNext = document.createElement("td");
-        tdNext.textContent = nextStep;
-        tr.appendChild(tdNext);
+  let fullData = [];
+  let articlesData = [];
+  let currentPage = 1;
+  const rowsPerPage = 50;
 
-        tbody.appendChild(tr);
-      });
+  const nameKey = s => (s || "").trim().toLowerCase();
 
-      table.appendChild(thead);
-      table.appendChild(tbody);
-      return table;
+  // Handles quoted cells, commas and quotes inside cells. Skips the header row.
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], cell = "", inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { cell += '"'; i++; }
+          else inQuotes = false;
+        } else cell += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(cell); cell = ""; }
+      else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ""; }
+      else if (c !== '\r') cell += c;
     }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.slice(1);
+  }
 
-    function paginate(data) {
-      const start = (currentPage - 1) * rowsPerPage;
-      return data.slice(start, start + rowsPerPage);
-    }
+  function createTable(data) {
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const tbody = document.createElement("tbody");
 
-    function renderPagination(totalRows) {
-      const pageCount = Math.ceil(totalRows / rowsPerPage);
-      const container = document.getElementById("pagination");
-      container.innerHTML = '';
+    const headers = ["Click the name to edit", "Next step"];
+    const trHead = document.createElement("tr");
+    headers.forEach(header => {
+      const th = document.createElement("th");
+      th.textContent = header;
+      trHead.appendChild(th);
+    });
+    thead.appendChild(trHead);
 
-      for (let i = 1; i <= pageCount; i++) {
-        const btn = document.createElement("button");
-        btn.textContent = i;
-        if (i === currentPage) btn.disabled = true;
-        btn.onclick = () => {
-          currentPage = i;
-          render();
-        };
-        container.appendChild(btn);
-      }
-    }
+    data.forEach(row => {
+      const tr = document.createElement("tr");
 
-    function render() {
-      const searchValue = document.getElementById("searchInput").value.toLowerCase();
-      const filterValue = document.getElementById("filterSelect").value;
+      // Columns B = row[1], C = row[2], D = row[3]
+      const name = row[1] || "";
+      const nextStep = row[2] || "";
+      const link = row[3] || "";
 
-      let filtered = fullData.filter(row => {
-        const name = row[1] || "";
-        const nextStep = row[2] || "";
-        const nameMatch = name.toLowerCase().includes(searchValue);
-        const stepMatch = !filterValue || nextStep === filterValue;
-        return nameMatch && stepMatch;
-      });
+      const tdName = document.createElement("td");
+      const a = document.createElement("a");
+      a.textContent = name;
+      a.href = link || "#";
+      a.target = "_blank";
+      tdName.appendChild(a);
+      tr.appendChild(tdName);
 
-      const paged = paginate(filtered);
-      const table = createTable(paged);
-      document.getElementById("tableContainer").innerHTML = "";
-      document.getElementById("tableContainer").appendChild(table);
-      renderPagination(filtered.length);
-    }
+      const tdNext = document.createElement("td");
+      tdNext.textContent = nextStep;
+      tr.appendChild(tdNext);
 
-    fetch(csvUrl)
-      .then(res => res.text())
-      .then(csv => {
-        // Simple CSV parsing (split lines, then split by comma)
-        const rows = csv.trim().split("\n").slice(1).map(row => row.split(",").map(cell => cell.replace(/^"(.*)"$/, '$1')));
-        fullData = rows.filter(row => row.length >= 4);
+      tbody.appendChild(tr);
+    });
 
-        // Populate filter dropdown with unique values from Column C (index 2)
-        const uniqueSteps = [...new Set(fullData.map(row => row[2]).filter(x => x))];
-        const filterSelect = document.getElementById("filterSelect");
-        uniqueSteps.forEach(step => {
-          const opt = document.createElement("option");
-          opt.value = step;
-          opt.textContent = step;
-          filterSelect.appendChild(opt);
-        });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    return table;
+  }
 
-        document.getElementById("searchInput").addEventListener("input", () => {
-          currentPage = 1;
-          render();
-        });
-        document.getElementById("filterSelect").addEventListener("change", () => {
-          currentPage = 1;
-          render();
-        });
+  function paginate(data) {
+    const start = (currentPage - 1) * rowsPerPage;
+    return data.slice(start, start + rowsPerPage);
+  }
 
+  function renderPagination(totalRows) {
+    const pageCount = Math.ceil(totalRows / rowsPerPage);
+    const container = document.getElementById("pagination");
+    container.innerHTML = '';
+
+    for (let i = 1; i <= pageCount; i++) {
+      const btn = document.createElement("button");
+      btn.textContent = i;
+      if (i === currentPage) btn.disabled = true;
+      btn.onclick = () => {
+        currentPage = i;
         render();
-      });
-  </script>
+      };
+      container.appendChild(btn);
+    }
+  }
+
+  function render() {
+    const searchValue = document.getElementById("searchInput").value.toLowerCase();
+    const filterValue = document.getElementById("filterSelect").value;
+
+    let filtered = fullData.filter(row => {
+      const name = row[1] || "";
+      const nextStep = row[2] || "";
+      const nameMatch = name.toLowerCase().includes(searchValue);
+      const stepMatch = !filterValue || nextStep === filterValue;
+      return nameMatch && stepMatch;
+    });
+
+    const paged = paginate(filtered);
+    const table = createTable(paged);
+    document.getElementById("tableContainer").innerHTML = "";
+    document.getElementById("tableContainer").appendChild(table);
+    renderPagination(filtered.length);
+  }
+
+  // Suggest three random nominations from those with the highest number of
+  // citations where column H ("enough citations for a new article?") is TRUE
+  function suggestBiographies() {
+    const container = document.getElementById("suggestions");
+    container.innerHTML = "";
+
+    if (articlesData.length === 0) {
+      container.textContent = "Couldn't load suggestions right now. Please try again later.";
+      return;
+    }
+
+    // Column H (index 7) = enough citations for a new article
+    // Column M (index 12) = Wikidata Q-ID, used to skip duplicate rows for the same person
+    const seen = new Set();
+    const candidates = articlesData
+      .filter(row => (row[7] || "").trim().toUpperCase() === "TRUE")
+      .filter(row => nameKey(row[1]))
+      .filter(row => {
+        const key = (row[12] || "").trim() || nameKey(row[1]);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map(row => ({
+        name: row[1].trim(),
+        link: row[4] || "#",                      // "Link to edit"
+        citations: parseInt(row[3], 10) || 0      // column D
+      }));
+
+    if (candidates.length === 0) {
+      container.textContent = "No assignments currently need a biography.";
+      return;
+    }
+
+    // Pool = people with the highest citation count, widened to the next-highest
+    // counts only if needed to reach at least three people
+    const counts = [...new Set(candidates.map(c => c.citations))].sort((a, b) => b - a);
+    let pool = [];
+    for (const count of counts) {
+      pool = pool.concat(candidates.filter(c => c.citations === count));
+      if (pool.length >= 3) break;
+    }
+
+    // Shuffle the pool and take three
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const picks = pool.slice(0, 3);
+
+    const heading = document.createElement("strong");
+    heading.textContent = "Try one of these:";
+    container.appendChild(heading);
+
+    const ol = document.createElement("ol");
+    picks.forEach(item => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.textContent = item.name;
+      a.href = item.link;
+      a.target = "_blank";
+      li.appendChild(a);
+      li.appendChild(document.createTextNode(` (${item.citations} citations)`));
+      ol.appendChild(li);
+    });
+    container.appendChild(ol);
+  }
+
+  Promise.all([
+    fetch(csvUrl).then(res => res.text()),
+    fetch(articlesCsvUrl).then(res => res.text()).catch(() => "")
+  ]).then(([csv, articlesCsv]) => {
+
+    articlesData = parseCsv(articlesCsv);
+    fullData = parseCsv(csv).filter(row => row.length >= 4);
+
+    // Populate filter dropdown with unique values from Column C (index 2)
+    const uniqueSteps = [...new Set(fullData.map(row => row[2]).filter(x => x))];
+    const filterSelect = document.getElementById("filterSelect");
+    uniqueSteps.forEach(step => {
+      const opt = document.createElement("option");
+      opt.value = step;
+      opt.textContent = step;
+      filterSelect.appendChild(opt);
+    });
+
+    document.getElementById("searchInput").addEventListener("input", () => {
+      currentPage = 1;
+      render();
+    });
+
+    document.getElementById("filterSelect").addEventListener("change", () => {
+      currentPage = 1;
+      render();
+    });
+
+    document.getElementById("suggestBtn").addEventListener("click", suggestBiographies);
+
+    render();
+  });
+</script>
+
 </body>
 </html>
-
