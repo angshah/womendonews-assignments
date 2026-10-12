@@ -86,7 +86,7 @@
   // Tab that feeds the table: name, next step, link
   const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=384521337&single=true&output=csv';
 
-  // "Articles data" tab: used for the "Suggest a biography" button
+  // "Articles data" tab: used for both suggestion buttons
   const articlesCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRus4kFg2V9ITptF_g9OZnYV399uqeSrjKKMD8hJZGmKFZs275TDJy1ZxZDVZv_KB5Aed5gjK4_EL78/pub?gid=1205421429&single=true&output=csv';
 
   let fullData = [];
@@ -95,6 +95,13 @@
   const rowsPerPage = 50;
 
   const nameKey = s => (s || "").trim().toLowerCase();
+
+  // Reads a whole number from a cell, ignoring thousands separators.
+  // Returns null if the cell isn't a number.
+  function toCount(cell) {
+    const s = (cell || "").replace(/,/g, "").trim();
+    return /^\d+$/.test(s) ? parseInt(s, 10) : null;
+  }
 
   // Handles quoted cells, commas and quotes inside cells. Skips the header row.
   function parseCsv(text) {
@@ -209,8 +216,9 @@
     return copy.slice(0, n);
   }
 
-  // Shows a heading and a numbered list of linked names in the results area
-  function renderSuggestions(headingText, picks) {
+  // Shows a heading and a numbered list of linked names in the results area.
+  // countLabel is the text after the number, e.g. "citations" or "estimated citations".
+  function renderSuggestions(headingText, picks, countLabel) {
     const container = document.getElementById("suggestions");
     container.innerHTML = "";
 
@@ -226,14 +234,15 @@
       a.href = item.link;
       a.target = "_blank";
       li.appendChild(a);
-      li.appendChild(document.createTextNode(` (${item.citations} citations)`));
+      li.appendChild(document.createTextNode(` (${item.citations} ${countLabel})`));
       ol.appendChild(li);
     });
     container.appendChild(ol);
   }
 
-  // Suggest three random nominations from those with the highest number of
-  // citations where column H ("enough citations for a new article?") is TRUE
+  // Suggest three random nominations from those with the highest estimated
+  // citation count (column T) where column H ("enough citations for a new
+  // article?") is TRUE
   function suggestBiographies() {
     const container = document.getElementById("suggestions");
     container.innerHTML = "";
@@ -243,12 +252,14 @@
       return;
     }
 
-    // Column H (index 7) = enough citations for a new article
+    // Column H (index 7)  = enough citations for a new article
+    // Column T (index 19) = estimated number of citations
     // Column M (index 12) = Wikidata Q-ID, used to skip duplicate rows for the same person
     const seen = new Set();
     const candidates = articlesData
       .filter(row => (row[7] || "").trim().toUpperCase() === "TRUE")
       .filter(row => nameKey(row[1]))
+      .filter(row => toCount(row[19]) !== null)
       .filter(row => {
         const key = (row[12] || "").trim() || nameKey(row[1]);
         if (seen.has(key)) return false;
@@ -258,7 +269,7 @@
       .map(row => ({
         name: row[1].trim(),
         link: row[4] || "#",                      // "Link to edit"
-        citations: parseInt(row[3], 10) || 0      // column D
+        citations: toCount(row[19])               // column T
       }));
 
     if (candidates.length === 0) {
@@ -275,7 +286,9 @@
       if (pool.length >= 3) break;
     }
 
-    renderSuggestions("Try writing one of these:", pickRandom(pool, 3));
+    // Show the picks from highest to lowest estimate
+    const picks = pickRandom(pool, 3).sort((a, b) => b.citations - a.citations);
+    renderSuggestions("Try writing one of these:", picks, "estimated citations");
   }
 
   // The edit suggestions are chosen from at least this many of the articles with
@@ -327,7 +340,7 @@
       if (pool.length >= Math.max(EDIT_POOL_MIN, 3)) break;
     }
 
-    renderSuggestions("Try editing one of these:", pickRandom(pool, 3));
+    renderSuggestions("Try editing one of these:", pickRandom(pool, 3), "citations");
   }
 
   Promise.all([
